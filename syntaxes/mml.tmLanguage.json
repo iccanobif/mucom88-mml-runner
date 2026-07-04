@@ -1,0 +1,10 @@
+{
+  "name": "MML",
+  "scopeName": "source.mml",
+  "patterns": [
+    {
+      "name": "comment.line.number-sign.mml",
+      "match": "^\\s*#.*$"
+    }
+  ]
+}

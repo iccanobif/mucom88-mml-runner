@@ -1,0 +1,59 @@
+{
+  "name": "mml-runner",
+  "displayName": "MML Runner",
+  "description": "MML language support and F5 reproduction via mucom88 for .muc files.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "mml",
+        "aliases": [
+          "MML",
+          "mml"
+        ],
+        "extensions": [
+          ".muc"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "mml",
+        "scopeName": "source.mml",
+        "path": "./syntaxes/mml.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "mml.toggleReproduce",
+        "title": "MML: Reproduce/Stop"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "mml.toggleReproduce",
+        "key": "f5",
+        "when": "editorTextFocus && editorLangId == mml"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.2",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.5.2"
+  }
+}
