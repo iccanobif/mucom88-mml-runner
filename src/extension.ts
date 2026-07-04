@@ -2,35 +2,35 @@ import * as vscode from "vscode";
 import { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 
 let runningProcess: ChildProcessWithoutNullStreams | undefined;
-let runningFilePath: string | undefined;
 let statusBarItem: vscode.StatusBarItem | undefined;
-let stdoutBuffer = "";
-let stderrBuffer = "";
-let stopRequestedByUser = false;
+const suppressedExitProcesses = new WeakSet<ChildProcessWithoutNullStreams>();
 
 export function activate(context: vscode.ExtensionContext): void {
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1000);
   statusBarItem.text = "$(play) Reproducing MML...";
   statusBarItem.color = "#00C853";
 
-  const command = vscode.commands.registerCommand("mml.toggleReproduce", async () => {
-    await toggleReproduce();
+  const reproduceOrRestartCommand = vscode.commands.registerCommand("mml.reproduceOrRestart", async () => {
+    await reproduceOrRestart();
   });
 
-  context.subscriptions.push(command, statusBarItem);
+  const stopCommand = vscode.commands.registerCommand("mml.stopReproduce", async () => {
+    await stopReproduce();
+  });
+
+  context.subscriptions.push(reproduceOrRestartCommand, stopCommand, statusBarItem);
 }
 
 export function deactivate(): void {
-  cleanupRunningProcess(true);
+  if (runningProcess) {
+    suppressedExitProcesses.add(runningProcess);
+    runningProcess.kill();
+    runningProcess = undefined;
+  }
+  hideRunningStatus();
 }
 
-async function toggleReproduce(): Promise<void> {
-  if (runningProcess) {
-    stopRequestedByUser = true;
-    cleanupRunningProcess(true);
-    return;
-  }
-
+async function reproduceOrRestart(): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.languageId !== "mml") {
     return;
@@ -42,24 +42,39 @@ async function toggleReproduce(): Promise<void> {
     return;
   }
 
-  const filePath = editor.document.uri.fsPath;
-  runningFilePath = filePath;
-  stdoutBuffer = "";
-  stderrBuffer = "";
+  if (runningProcess) {
+    await stopProcessInternal(true);
+  }
+
+  startProcess(editor.document.uri.fsPath);
+}
+
+async function stopReproduce(): Promise<void> {
+  if (runningProcess) {
+    await stopProcessInternal(true);
+  }
+}
+
+function startProcess(filePath: string): void {
+  let stdoutBuffer = "";
+  let stderrBuffer = "";
+  let launchedProcess: ChildProcessWithoutNullStreams;
 
   try {
-    runningProcess = spawn("mucom88", [filePath], {
+    launchedProcess = spawn("mucom88", [filePath], {
       windowsHide: true,
       stdio: "pipe"
     });
   } catch (error) {
-    cleanupRunningProcess(false);
+    hideRunningStatus();
     const message = error instanceof Error ? error.message : String(error);
     void vscode.window.showErrorMessage(`Unable to start mucom88: ${message}`);
     return;
   }
 
-  const proc = runningProcess;
+  runningProcess = launchedProcess;
+
+  const proc = launchedProcess;
   const launchedFilePath = filePath;
 
   showRunningStatus();
@@ -76,19 +91,33 @@ async function toggleReproduce(): Promise<void> {
   });
 
   proc.on("error", (error) => {
-    cleanupRunningProcess(false);
+    if (runningProcess === proc) {
+      runningProcess = undefined;
+    }
+    hideRunningStatus();
+
+    const shouldSuppress = suppressedExitProcesses.has(proc);
+    suppressedExitProcesses.delete(proc);
+    if (shouldSuppress) {
+      return;
+    }
+
     void vscode.window.showErrorMessage(`mucom88 execution error: ${error.message}`);
   });
 
   proc.on("close", (code) => {
-    if (stopRequestedByUser) {
-      stopRequestedByUser = false;
-      cleanupRunningProcess(false);
+    if (runningProcess === proc) {
+      runningProcess = undefined;
+    }
+    hideRunningStatus();
+
+    const shouldSuppress = suppressedExitProcesses.has(proc);
+    suppressedExitProcesses.delete(proc);
+    if (shouldSuppress) {
       return;
     }
 
     const output = formatProcessOutput(stdoutBuffer, stderrBuffer);
-    cleanupRunningProcess(false);
 
     if (code !== 0) {
       const suffix = output.length > 0 ? `\n\n${output}` : "";
@@ -99,24 +128,38 @@ async function toggleReproduce(): Promise<void> {
   });
 }
 
+function stopProcessInternal(suppressExitError: boolean): Promise<void> {
+  const proc = runningProcess;
+  if (!proc) {
+    hideRunningStatus();
+    return Promise.resolve();
+  }
+
+  runningProcess = undefined;
+  hideRunningStatus();
+
+  if (suppressExitError) {
+    suppressedExitProcesses.add(proc);
+  }
+
+  if (proc.exitCode !== null || proc.signalCode !== null) {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve) => {
+    proc.once("close", () => {
+      resolve();
+    });
+    proc.kill();
+  });
+}
+
 function showRunningStatus(): void {
   statusBarItem?.show();
 }
 
 function hideRunningStatus(): void {
   statusBarItem?.hide();
-}
-
-function cleanupRunningProcess(killProcess: boolean): void {
-  const proc = runningProcess;
-  runningProcess = undefined;
-
-  if (killProcess && proc && !proc.killed) {
-    proc.kill();
-  }
-
-  runningFilePath = undefined;
-  hideRunningStatus();
 }
 
 function formatProcessOutput(stdout: string, stderr: string): string {

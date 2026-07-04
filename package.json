@@ -34,14 +34,23 @@
     ],
     "commands": [
       {
-        "command": "mml.toggleReproduce",
-        "title": "MML: Reproduce/Stop"
+        "command": "mml.reproduceOrRestart",
+        "title": "MML: Reproduce/Restart"
+      },
+      {
+        "command": "mml.stopReproduce",
+        "title": "MML: Stop Reproduction"
       }
     ],
     "keybindings": [
       {
-        "command": "mml.toggleReproduce",
+        "command": "mml.reproduceOrRestart",
         "key": "f5",
+        "when": "editorTextFocus && editorLangId == mml"
+      },
+      {
+        "command": "mml.stopReproduce",
+        "key": "shift+f5",
         "when": "editorTextFocus && editorLangId == mml"
       }
     ]
