@@ -1,9 +1,12 @@
 {
-  "name": "mml-runner",
+  "name": "mucom88-mml-runner",
   "displayName": "MML Runner",
   "description": "MML language support and F5 reproduction via mucom88 for .muc files.",
   "version": "0.0.1",
   "publisher": "local",
+  "repository": {
+    "url": "https://github.com/iccanobif/mucom88-mml-runner"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -63,6 +66,7 @@
   "devDependencies": {
     "@types/node": "^20.14.2",
     "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.9.2",
     "typescript": "^5.5.2"
   }
 }
